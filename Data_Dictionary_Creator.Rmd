@@ -1,0 +1,206 @@
+---
+title: "Data Dictionary::"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: cerulean
+    orientation: rows
+    vertical_layout: fill
+runtime: shiny
+
+---
+
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(visdat)
+library(dplyr)
+library(dygraphs)
+library(DT)
+
+library(plotly)
+
+
+
+# ::Function
+
+basic_info_table_2 <- function(my_df)
+{
+  tibble::tibble(
+    `Variable Name` = names(my_df),
+    `Datatype` = purrr::map_chr( my_df, function(x){ paste(class(x), collapse=' ')} ),
+    `Number Unique Values` = purrr::map_int( my_df, n_distinct ),
+    `Number Missing Values` = purrr::map_int( my_df, ~sum( is.na(.) ) )
+  ) %>% 
+    mutate(`Proportion Unique` = `Number Unique Values` / nrow(my_df),
+           `Proportion Missing` = `Number Missing Values` / nrow(my_df)
+           ,
+           `Description` = ""
+           )
+}
+
+
+
+#data choice
+info<-reactive({
+  if( input$data_option == 'Sample_data' ){
+      option <- iris
+    }else{
+      option <-vroom::vroom(input$file1$datapath, locale = vroom::locale(encoding = "CP1252"))
+    }
+    option
+
+})
+
+
+
+  
+
+d_table<-reactive({ 
+  info()%>%basic_info_table_2()%>%
+  DT::datatable(
+    editable = TRUE,
+    extensions = c('Buttons', 'Scroller'), 
+   options = list( dom='Blrtip',
+    buttons = c('copy', 'print', 'excel','pdf'),
+    lengthMenu = list( c (-1, 50), c("All", 50))
+  ))%>%
+  DT::formatStyle(columns = colnames(.), fontSize = '10pt')
+  })
+  
+
+
+
+
+# raw_table<-reactive({ 
+#   info()%>%
+#   DT::datatable(
+#     editable = TRUE,
+#     extensions = c('Buttons', 'Scroller'), 
+#     options = list( dom='Blfrtip',
+#     buttons = c('copy', 'print', 'csv', 'excel','pdf'),
+#     lengthMenu = list( c (50,-1), c(50,"All"))
+#     
+#   ))%>%
+#   DT::formatStyle(columns = colnames(.), fontSize = '10pt')
+#   })
+
+
+
+
+preview<-reactive({info() %>% glimpse()}%>%
+                    DT::datatable(
+    editable = TRUE,
+    extensions = c('Buttons', 'Scroller'), 
+    options = list( dom='Blfrtip',
+    buttons = c('copy', 'print', 'csv', 'excel','pdf'),
+    lengthMenu = list( c (50,-1), c(50,"All"))
+    
+  ))%>%
+  DT::formatStyle(columns = colnames(.), fontSize = '10pt')
+                    )
+
+```
+
+
+
+# 1. Import Data >> {data-icon="fa-database"}
+
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+<h5>1. Prepare Data before Using this App</h5>
+<ul>
+<li>CSV file is required</li>
+<li>Keep your datatype consistent in the same field </li>
+<li>Keep cells blank for intentional null data </li>
+<li>Use the first rows to indicate the name of the field</li>
+</ul>
+
+<h5>2. Import Data</h5>
+```{r}
+radioButtons('data_option',"Select the data to use:",
+            selected = 'Sample_data',choices = c("Sample_data", 'Upload_CSV'))
+            
+fileInput("file1", "Choose CSV File", multiple = TRUE,
+          accept = c("text/csv", ".csv"))
+```
+<h5>3. Confirm data</h5>
+<p>Confirm your data and navigate to <code>2. Data Dictionary</code></p>
+
+<br></br>
+<hr />
+
+<p><sub>Questions</sub></p>
+<p><sub>If you have any questions, please contact me via <a href="mailto:yem7@pitt.edu">yem7@pitt.edu</a> or <a href="mailto:muny@duq.edu">muny@duq.edu</a>.</sub></p>
+-----------------------------------------------------------------------
+
+Row {data-height=650}
+-----------------------------------------------------------------------
+### Preview
+
+```{r}
+renderDT({preview()})
+```
+
+
+# 2. Data Dictionary >> {data-icon="fa-table"}
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+<span data-preserver-spaces="true"><h5>1. Confirm Metadata</span></h5>
+<p style="padding-left: 40px;"><span data-preserver-spaces="true">See if variable name, datatype, number of unique values, number of missing values, proportion of unique, and proportion of missing are correct.</span></p>
+<br></br>
+<h5>2. Edit Cells</h5>
+<p style="padding-left: 40px;"><span data-preserver-spaces="true">The final column is for a longer explanation of the variable. Consider adding a description of the variable. It could help others to understand what the variable refers to. If you want to modify metadata, double-click the corresponding cell and rewrite the data.</span></p>
+<br></br>
+<h5>3. Export Data Dictionary</h5>
+<p style="padding-left: 40px;"><span data-preserver-spaces="true">Once ready, you can export the data dictionary as a new file using buttons at the top (CSV, Excel, or PDF) .</span></p>
+<p>&nbsp;</p>
+
+
+
+Row {data-height=650}
+-----------------------------------------------------------------------
+### Info Table
+
+```{r}
+renderDT({d_table()})
+```
+
+
+
+-----------------------------------------------------------------------
+
+# 3. Observation >> {data-icon='fa-check'}
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+<h5>Final Overview</h5>
+<p>Confirm your data has appropriate datatype and missingness.</p>
+
+Row {.tabset .tabset-fade}
+-----------------------------------------------------------------------
+### datatype
+
+```{r}
+renderPlot({
+  p1<-info() %>% visdat::vis_dat(.,warn_large_dat =FALSE)+
+      scale_fill_viridis_d()+coord_flip()
+  p1
+  })
+```
+
+
+### missingness
+
+```{r}
+renderPlot({
+    p2<-info() %>% visdat::vis_miss(.,warn_large_dat =FALSE)+
+      scale_fill_viridis_d()+coord_flip()
+    p2
+  })
+```
+
+
